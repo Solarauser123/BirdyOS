@@ -65,17 +65,8 @@ Fully compliant with Microsoft terms.
 
 ## Requirements
 
-- Windows 11 **23H2 (build 22631)** or newer  
+- Recommend Windows 11 **23H2 (build 22631)** or newer  
   (some tweaks may partially work on 22H2, but many AI/Recall-related keys are ignored)
 - Administrator rights (script auto-elevates)
 
 ---
-
-## How to use
-
-```text
-1. Download BirdyOS.ps1
-2. Right-click → Run with PowerShell
-3. It auto-elevates (UAC prompt)
-4. Choose from the menu (or press A = Run Everything)
-5. Reboot when finished
