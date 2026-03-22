@@ -12,6 +12,18 @@ No custom ISO. No third-party tools. No installers. Just one `.ps1` file you can
 
 ---
 
+## How To use
+
+Download & run the script automatically via PowerShell.
+
+1. Open PowerShell or Terminal, as administrator.
+2. Copy and paste the command below into PowerShell:
+
+```PowerShell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+& ([scriptblock]::Create((Invoke-RestMethod "https://raw.githubusercontent.com/Solarauser123/BirdyOS/main/BirdyOS.ps1")))
+```
+
 ## Why?
 
 Modern Windows 11 comes with heavy telemetry, AI features, forced updates, visual effects, bloat apps, reserved storage, advertising IDs, Copilot, Widgets, Recall previews, cloud integrations and more — most users never asked for any of it.
