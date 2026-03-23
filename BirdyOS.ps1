@@ -1,6 +1,15 @@
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]"Administrator")) {
-    Start-Process PowerShell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
-    Exit
+    if ($PSCommandPath) {
+        Start-Process PowerShell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
+        Exit
+    } else {
+        Write-Host ""
+        Write-Host "  [!] BirdyOS requires Administrator rights." -ForegroundColor Red
+        Write-Host "  [!] Please re-open PowerShell as Administrator and run again." -ForegroundColor Red
+        Write-Host ""
+        Start-Sleep -Seconds 5
+        Exit
+    }
 }
 
 $winBuild = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuild
@@ -178,16 +187,6 @@ function Disable-ActivityHistory {
     Show-Done
 }
 
-function Disable-ClipboardSync {
-    Write-Host ""
-    Write-Host "  Disabling Clipboard History and Cloud Sync..." -ForegroundColor Cyan
-    Write-Host ""
-    Set-RegKey 'HKCU:\SOFTWARE\Microsoft\Clipboard' 'EnableClipboardHistory' 0
-    Set-RegKey 'HKCU:\SOFTWARE\Microsoft\Clipboard' 'EnableCloudClipboard' 0
-    Set-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'AllowClipboardHistory' 0
-    Set-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'AllowCrossDeviceClipboard' 0
-    Show-Done
-}
 
 function Disable-Recall {
     Write-Host ""
@@ -247,12 +246,11 @@ function Show-Privacy {
         Write-Host "  [3]  Block Telemetry via Hosts File" -ForegroundColor Yellow
         Write-Host "  [4]  Disable Advertising ID" -ForegroundColor Yellow
         Write-Host "  [5]  Disable Activity History" -ForegroundColor Yellow
-        Write-Host "  [6]  Disable Clipboard Sync" -ForegroundColor Yellow
-        Write-Host "  [7]  Disable Windows Recall" -ForegroundColor Yellow
-        Write-Host "  [8]  Disable Wi-Fi Sense" -ForegroundColor Yellow
-        Write-Host "  [9]  Disable Voice Activation" -ForegroundColor Yellow
-        Write-Host "  [10] Disable App Launch Tracking" -ForegroundColor Yellow
-        Write-Host "  [11] Disable Lock Screen Camera" -ForegroundColor Yellow
+        Write-Host "  [6]  Disable Windows Recall" -ForegroundColor Yellow
+        Write-Host "  [7]  Disable Wi-Fi Sense" -ForegroundColor Yellow
+        Write-Host "  [8]  Disable Voice Activation" -ForegroundColor Yellow
+        Write-Host "  [9]  Disable App Launch Tracking" -ForegroundColor Yellow
+        Write-Host "  [10] Disable Lock Screen Camera" -ForegroundColor Yellow
         Write-Host "  [A]  Run All" -ForegroundColor Cyan
         Write-Host "  [0]  Back" -ForegroundColor Red
         Write-Host ""
@@ -265,19 +263,17 @@ function Show-Privacy {
             '3'  { Add-HostsTelemetryBlock }
             '4'  { Disable-AdvertisingID }
             '5'  { Disable-ActivityHistory }
-            '6'  { Disable-ClipboardSync }
-            '7'  { Disable-Recall }
-            '8'  { Disable-WifiSense }
-            '9'  { Disable-VoiceActivation }
-            '10' { Disable-AppLaunchTracking }
-            '11' { Disable-LockScreenCamera }
+            '6'  { Disable-Recall }
+            '7'  { Disable-WifiSense }
+            '8'  { Disable-VoiceActivation }
+            '9'  { Disable-AppLaunchTracking }
+            '10' { Disable-LockScreenCamera }
             'A'  {
                 Disable-AllTelemetry
                 Set-AppPermissions
                 Add-HostsTelemetryBlock
                 Disable-AdvertisingID
                 Disable-ActivityHistory
-                Disable-ClipboardSync
                 Disable-Recall
                 Disable-WifiSense
                 Disable-VoiceActivation
@@ -553,8 +549,8 @@ function Disable-AnimationsEffects {
     Write-Host ""
     Set-RegKey 'HKCU:\Control Panel\Desktop' 'MenuShowDelay' 0
     Set-RegKey 'HKCU:\Control Panel\Desktop' 'AutoEndTasks' 1
-    Set-RegKey 'HKCU:\Control Panel\Desktop' 'WaitToKillAppTimeout' 2000
-    Set-RegKey 'HKCU:\Control Panel\Desktop' 'HungAppTimeout' 1000
+    Set-RegKey 'HKCU:\Control Panel\Desktop' 'WaitToKillAppTimeout' 2000 'String'
+    Set-RegKey 'HKCU:\Control Panel\Desktop' 'HungAppTimeout' 1000 'String'
     Set-RegKey 'HKCU:\Control Panel\Desktop' 'DragFullWindows' 0
     Set-RegKey 'HKCU:\Control Panel\Desktop\WindowMetrics' 'MinAnimate' 0
     Set-RegKey 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' 'VisualFXSetting' 3
@@ -562,7 +558,7 @@ function Disable-AnimationsEffects {
     Write-Host "  SET  UserPreferencesMask" -ForegroundColor DarkGray
     Set-RegKey 'HKLM:\SYSTEM\CurrentControlSet\Control' 'WaitToKillServiceTimeout' 2000 'String'
     Set-RegKey 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Serialize' 'StartupDelayInMSec' 0
-    Set-RegKey 'HKCU:\Control Panel\Desktop' 'LowLevelHooksTimeout' 1000
+    Set-RegKey 'HKCU:\Control Panel\Desktop' 'LowLevelHooksTimeout' 1000 'String'
     Show-Done
 }
 
@@ -651,6 +647,24 @@ function Disable-SleepStudy {
     Show-Done
 }
 
+function Set-IFEOPriorities {
+    Write-Host ""
+    Write-Host "  Deprioritizing Background Processes via IFEO..." -ForegroundColor Cyan
+    Write-Host ""
+    $ifeoBase = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options'
+    $processes = @(
+        @{Name='SearchIndexer.exe'; Priority=6},
+        @{Name='ctfmon.exe';        Priority=6},
+        @{Name='fontdrvhost.exe';   Priority=6}
+    )
+    foreach ($proc in $processes) {
+        $path = "$ifeoBase\$($proc.Name)\PerfOptions"
+        Set-RegKey $path 'CpuPriorityClass' $proc.Priority
+        Set-RegKey $path 'IoPriority' 0
+    }
+    Show-Done
+}
+
 function Invoke-AllPerformance {
     Disable-AnimationsEffects
     Disable-SearchIndexing
@@ -661,6 +675,7 @@ function Invoke-AllPerformance {
     Set-ForegroundPriority
     Disable-MemoryPaging
     Disable-SleepStudy
+    Set-IFEOPriorities
 }
 
 function Show-Performance {
@@ -679,6 +694,7 @@ function Show-Performance {
         Write-Host "  [7]  Prioritize Foreground Applications" -ForegroundColor Yellow
         Write-Host "  [8]  Optimize Memory Paging" -ForegroundColor Yellow
         Write-Host "  [9]  Disable SleepStudy" -ForegroundColor Yellow
+        Write-Host "  [10] Deprioritize Background Processes" -ForegroundColor Yellow
         Write-Host "  [A]  Run All" -ForegroundColor Cyan
         Write-Host "  [0]  Back" -ForegroundColor Red
         Write-Host ""
@@ -695,6 +711,7 @@ function Show-Performance {
             '7' { Set-ForegroundPriority }
             '8' { Disable-MemoryPaging }
             '9' { Disable-SleepStudy }
+            '10' { Set-IFEOPriorities }
             'A' { Invoke-AllPerformance }
             '0' { return }
             default { Write-Host ""; Write-Host "  [!] Invalid option, try again" -ForegroundColor Red; Start-Sleep -Seconds 1 }
@@ -924,7 +941,6 @@ function Run-Everything {
     Disable-AllTelemetry
     Disable-AdvertisingID
     Disable-ActivityHistory
-    Disable-ClipboardSync
     Disable-Recall
     Disable-WifiSense
     Disable-VoiceActivation
@@ -1165,17 +1181,6 @@ function Show-FileExtensions {
     Show-Done
 }
 
-function Set-ClassicContextMenu {
-    Write-Host ""
-    Write-Host "  Restoring Classic Right-Click Context Menu..." -ForegroundColor Cyan
-    Write-Host ""
-    if (-not (Test-Path 'HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32')) {
-        New-Item -Path 'HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32' -Force | Out-Null
-    }
-    Set-ItemProperty -Path 'HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32' -Name '(Default)' -Value '' -Force
-    Write-Host "  SET  Classic context menu restored" -ForegroundColor DarkGray
-    Show-Done
-}
 
 function Set-ExplorerToThisPC {
     Write-Host ""
@@ -1189,8 +1194,8 @@ function Hide-ExplorerHomeGallery {
     Write-Host ""
     Write-Host "  Hiding Explorer Home and Gallery..." -ForegroundColor Cyan
     Write-Host ""
-    Set-RegKey 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' 'HubMode' 1
     Set-RegKey 'HKCU:\Software\Classes\CLSID\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}' 'System.IsPinnedToNameSpaceTree' 0
+    Remove-RegKey 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Desktop\NameSpace\{f874310e-b6b7-47dc-bc84-b9e6b38f5903}' '(Default)'
     Show-Done
 }
 
@@ -1217,6 +1222,7 @@ function Disable-WidgetsService {
     Write-Host ""
     Write-Host "  Disabling Widgets Service..." -ForegroundColor Cyan
     Write-Host ""
+    Set-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' 'AllowNewsAndInterests' 0
     try {
         Stop-Service -Name 'Widgets' -Force -ErrorAction Stop
         Set-Service -Name 'Widgets' -StartupType Disabled -ErrorAction Stop
@@ -1255,7 +1261,6 @@ function Invoke-AllQoL {
     Set-WallpaperQuality
     Disable-TouchFeedback
     Show-FileExtensions
-    Set-ClassicContextMenu
     Set-ExplorerToThisPC
     Hide-ExplorerHomeGallery
     Disable-SnapAssist
@@ -1285,13 +1290,12 @@ function Show-QoL {
         Write-Host "  [12] Set Wallpaper to Full Quality" -ForegroundColor Yellow
         Write-Host "  [13] Disable Touch Visual Feedback" -ForegroundColor Yellow
         Write-Host "  [14] Show File Extensions" -ForegroundColor Yellow
-        Write-Host "  [15] Restore Classic Context Menu" -ForegroundColor Yellow
-        Write-Host "  [16] Open File Explorer to This PC" -ForegroundColor Yellow
-        Write-Host "  [17] Hide Explorer Home and Gallery" -ForegroundColor Yellow
-        Write-Host "  [18] Disable Snap Assist" -ForegroundColor Yellow
-        Write-Host "  [19] Hide Task View Button" -ForegroundColor Yellow
-        Write-Host "  [20] Disable Widgets Service" -ForegroundColor Yellow
-        Write-Host "  [21] Disable Memory Compression" -ForegroundColor Yellow
+        Write-Host "  [15] Open File Explorer to This PC" -ForegroundColor Yellow
+        Write-Host "  [16] Hide Explorer Home and Gallery" -ForegroundColor Yellow
+        Write-Host "  [17] Disable Snap Assist" -ForegroundColor Yellow
+        Write-Host "  [18] Hide Task View Button" -ForegroundColor Yellow
+        Write-Host "  [19] Disable Widgets Service" -ForegroundColor Yellow
+        Write-Host "  [20] Disable Memory Compression" -ForegroundColor Yellow
         Write-Host "  [A]  Run All" -ForegroundColor Cyan
         Write-Host "  [0]  Back" -ForegroundColor Red
         Write-Host ""
@@ -1313,13 +1317,12 @@ function Show-QoL {
             '12' { Set-WallpaperQuality }
             '13' { Disable-TouchFeedback }
             '14' { Show-FileExtensions }
-            '15' { Set-ClassicContextMenu }
-            '16' { Set-ExplorerToThisPC }
-            '17' { Hide-ExplorerHomeGallery }
-            '18' { Disable-SnapAssist }
-            '19' { Hide-TaskView }
-            '20' { Disable-WidgetsService }
-            '21' { Disable-MemoryCompression }
+            '15' { Set-ExplorerToThisPC }
+            '16' { Hide-ExplorerHomeGallery }
+            '17' { Disable-SnapAssist }
+            '18' { Hide-TaskView }
+            '19' { Disable-WidgetsService }
+            '20' { Disable-MemoryCompression }
             'A'  { Invoke-AllQoL }
             '0'  { return }
             default { Write-Host ""; Write-Host "  [!] Invalid option, try again" -ForegroundColor Red; Start-Sleep -Seconds 1 }
@@ -1645,7 +1648,6 @@ function Disable-TelemetryServices {
         @{Name='lfsvc';           Desc='Geolocation Service'},
         @{Name='WbioSrvc';        Desc='Windows Biometric Service'},
         @{Name='RetailDemo';      Desc='Retail Demo Service'},
-        @{Name='dam';             Desc='Desktop Activity Moderator'},
         @{Name='tcpipreg';        Desc='TCP/IP Port Sharing'},
         @{Name='diagnosticshub.standardcollector.service'; Desc='Microsoft Diagnostics Hub Standard Collector'}
     )
@@ -1728,7 +1730,9 @@ function Set-GamingTweaks {
     try {
         & bcdedit /set useplatformtick yes 2>&1 | Out-Null
         & bcdedit /set disabledynamictick yes 2>&1 | Out-Null
-        Write-Host "  SET  Platform tick and dynamic tick configured" -ForegroundColor DarkGray
+        & bcdedit /deletevalue useplatformclock 2>&1 | Out-Null
+        & bcdedit /set bootmenupolicy legacy 2>&1 | Out-Null
+        Write-Host "  SET  Platform tick, dynamic tick, HPET and boot menu configured" -ForegroundColor DarkGray
     } catch { Write-Host "  FAIL bcdedit tick settings" -ForegroundColor Red }
     try {
         & powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 99999999-9999-9999-9999-999999999999 2>&1 | Out-Null
@@ -1821,13 +1825,14 @@ function Remove-Appx {
         'Microsoft.BingTravel',
         'Microsoft.NetworkSpeedTest',
         'MicrosoftWindows.Client.WebExperience',
-        'Microsoft.Windows.Family.Safety',
         'Microsoft.Whiteboard',
-        'Microsoft.PowerBI',
-        'Microsoft.Take-a-Test',
+        'MicrosoftCorporationII.MicrosoftFamily',
+        'Microsoft.MicrosoftPowerBIForWindows',
+        'Microsoft.Windows.SecureAssessmentBrowser',
         'Microsoft.MSPaint',
-        'Microsoft.Windows.CrossDeviceApp',
-        'Microsoft.Windows.StartExperiencesApp'
+        'MicrosoftWindows.CrossDevice',
+        'Microsoft.StartExperiencesApp',
+        'MicrosoftWindows.Client.WebExperiencePlatform'
     )
     $total = $apps.Count
     $i = 0
