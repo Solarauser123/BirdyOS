@@ -21,7 +21,7 @@ Download & run the script automatically via PowerShell.
 
 ```PowerShell
 Set-ExecutionPolicy Bypass -Scope Process -Force
-& ([scriptblock]::Create((Invoke-RestMethod "https://raw.githubusercontent.com/Solarauser123/BirdyOS/main/BirdyOS.ps1")))
+iex (irm "https://raw.githubusercontent.com/Solarauser123/BirdyOS/main/BirdyOS.ps1")
 ```
 
 ## Why?
