@@ -48,7 +48,7 @@ Everything is optional — pick & choose or **Run Everything** (creates restore 
 
 ## Open Source and Transparent
 
-100% open source (MIT license).  
+100% open source  
 No binaries, no encoded payloads, no external downloads.  
 You can read every registry key, service name, scheduled task and hosts entry the script touches.
 
