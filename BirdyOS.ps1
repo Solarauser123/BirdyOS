@@ -13,15 +13,16 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 }
 
 $winBuild = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuild
-if ([int]$winBuild -lt 22621) {
+if ([int]$winBuild -lt 22631) {
     Write-Host ""
-    Write-Host "  [!] Warning: BirdyOS is designed for Windows 11 23H2 or newer." -ForegroundColor DarkYellow
-    Write-Host "  Detected build: $winBuild - some tweaks may not work correctly." -ForegroundColor DarkGray
+    Write-Host "  [!] Warning: BirdyOS is designed for Windows 11 23H2 (build 22631) or newer." -ForegroundColor DarkYellow
+    Write-Host "  Detected build: $winBuild - some tweaks may not apply correctly." -ForegroundColor DarkGray
+    Write-Host "  For best results use 23H2 (22631) or 24H2 (26100)." -ForegroundColor DarkGray
     Write-Host ""
     Start-Sleep -Seconds 2
 }
 
-$script:LogPath = "$PSScriptRoot\BirdyOS-Log.txt"
+$script:LogPath = if ($PSScriptRoot) { "$PSScriptRoot\BirdyOS-Log.txt" } else { "$env:TEMP\BirdyOS-Log.txt" }
 Start-Transcript -Path $script:LogPath -Append -Force | Out-Null
 
 function Show-Logo {
@@ -184,6 +185,9 @@ function Disable-ActivityHistory {
     Set-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'EnableActivityFeed' 0
     Set-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'PublishUserActivities' 0
     Set-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'UploadUserActivities' 0
+    Remove-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'AllowClipboardHistory'
+    Remove-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'AllowCrossDeviceClipboard'
+    Remove-RegKey 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\System' 'AllowClipboardHistory'
     Show-Done
 }
 
@@ -298,6 +302,10 @@ function Disable-VBS {
     Write-Host ""
     Write-Host "  Disabling Virtualization Based Security..." -ForegroundColor Cyan
     Write-Host ""
+    Write-Host "  [!] Warning: This disables Credential Guard and HVCI." -ForegroundColor DarkYellow
+    Write-Host "  These protect against credential theft and unsigned kernel drivers." -ForegroundColor DarkYellow
+    Write-Host "  Only disable if you understand and accept the security tradeoff." -ForegroundColor DarkYellow
+    Write-Host ""
     Set-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard' 'EnableVirtualizationBasedSecurity' 0
     Set-RegKey 'HKLM:\SYSTEM\Policies\Microsoft\Windows\DeviceGuard' 'HVCIMATRequired' 0
     Set-RegKey 'HKLM:\SYSTEM\ControlSet001\Control\DeviceGuard' 'Locked' 0
@@ -335,6 +343,9 @@ function Disable-DefenderReporting {
 function Disable-SmartScreen {
     Write-Host ""
     Write-Host "  Disabling SmartScreen..." -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  [!] Warning: SmartScreen blocks phishing sites and unrecognised executables." -ForegroundColor DarkYellow
+    Write-Host "  Disabling it removes a layer of malware protection." -ForegroundColor DarkYellow
     Write-Host ""
     Set-RegKey 'HKLM:\Software\Policies\Microsoft\Windows Defender\SmartScreen' 'ConfigureAppInstallControlEnabled' 1
     Set-RegKey 'HKLM:\Software\Policies\Microsoft\Windows Defender\SmartScreen' 'ConfigureAppInstallControl' 'Anywhere' 'String'
@@ -667,7 +678,6 @@ function Set-IFEOPriorities {
 
 function Invoke-AllPerformance {
     Disable-AnimationsEffects
-    Disable-SearchIndexing
     Disable-Superfetch
     Disable-BackgroundApps
     Disable-ExplorerAnimations
@@ -1002,9 +1012,10 @@ function Disable-GameBar {
     Set-RegKey 'HKCU:\SOFTWARE\Microsoft\GameBar' 'GamePanelStartupTipIndex' 3
     Set-RegKey 'HKCU:\SOFTWARE\Microsoft\GameBar' 'ShowStartupPanel' 0
     Set-RegKey 'HKCU:\SOFTWARE\Microsoft\GameBar' 'UseNexusForGameBarEnabled' 0
-
     Set-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR' 'AllowGameDVR' 0
     Set-RegKey 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\ApplicationManagement\AllowGameDVR' 'value' 0
+    Set-RegKey 'HKCU:\Control Panel\Keyboard' 'PrintScreenKeyForSnippingEnabled' 1
+    Set-RegKey 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'DisabledHotkeys' 0
     Show-Done
 }
 
@@ -1201,12 +1212,10 @@ function Hide-ExplorerHomeGallery {
 
 function Disable-SnapAssist {
     Write-Host ""
-    Write-Host "  Disabling Snap Assist and Snap Layouts..." -ForegroundColor Cyan
+    Write-Host "  Disabling Snap Assist..." -ForegroundColor Cyan
     Write-Host ""
     Set-RegKey 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'SnapAssist' 0
-    Set-RegKey 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'EnableSnapBar' 0
     Set-RegKey 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'EnableTaskGroups' 0
-    Set-RegKey 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'EnableSnapAssistFlyout' 0
     Show-Done
 }
 
@@ -1536,7 +1545,6 @@ function Disable-TaskbarExtras {
     Enable-EndTask
     Disable-DesktopPeek
     Disable-CloudTaskbarContent
-    Show-Done
 }
 
 function Disable-NullSessions {
@@ -1597,9 +1605,11 @@ function Set-AppPermissions {
     Write-Host ""
     Write-Host "  Hardening App Permissions..." -ForegroundColor Cyan
     Write-Host ""
+    Write-Host "  [!] This denies all apps access to location, camera, mic, contacts, and more." -ForegroundColor DarkYellow
+    Write-Host "  Apps that need these will stop working until you re-enable them in Settings." -ForegroundColor DarkYellow
+    Write-Host ""
     $base = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore'
     Set-RegKey "$base\location" 'Value' 'Deny' 'String'
-    Set-RegKey "$base\userNotificationListener" 'Value' 'Deny' 'String'
     Set-RegKey "$base\userAccountInformation" 'Value' 'Deny' 'String'
     Set-RegKey "$base\contacts" 'Value' 'Deny' 'String'
     Set-RegKey "$base\appointments" 'Value' 'Deny' 'String'
@@ -1646,7 +1656,6 @@ function Disable-TelemetryServices {
         @{Name='WdiSystemHost';   Desc='Diagnostic System Host'},
         @{Name='dmwappushservice';Desc='WAP Push Message Routing'},
         @{Name='lfsvc';           Desc='Geolocation Service'},
-        @{Name='WbioSrvc';        Desc='Windows Biometric Service'},
         @{Name='RetailDemo';      Desc='Retail Demo Service'},
         @{Name='tcpipreg';        Desc='TCP/IP Port Sharing'},
         @{Name='diagnosticshub.standardcollector.service'; Desc='Microsoft Diagnostics Hub Standard Collector'}
@@ -1735,15 +1744,21 @@ function Set-GamingTweaks {
         Write-Host "  SET  Platform tick, dynamic tick, HPET and boot menu configured" -ForegroundColor DarkGray
     } catch { Write-Host "  FAIL bcdedit tick settings" -ForegroundColor Red }
     try {
-        & powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 99999999-9999-9999-9999-999999999999 2>&1 | Out-Null
-    } catch {}
-    try {
-        & powercfg /setactive 99999999-9999-9999-9999-999999999999 2>&1 | Out-Null
-        & powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 SUB_PROCESSOR CPMINCORES 100 2>&1 | Out-Null
-        & powercfg /setdcvalueindex 99999999-9999-9999-9999-999999999999 SUB_PROCESSOR CPMINCORES 100 2>&1 | Out-Null
-        & powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 SUB_PROCESSOR CPMAXCORES 100 2>&1 | Out-Null
-        & powercfg /setdcvalueindex 99999999-9999-9999-9999-999999999999 SUB_PROCESSOR CPMAXCORES 100 2>&1 | Out-Null
-        Write-Host "  SET  Ultimate Performance power plan activated with core parking disabled" -ForegroundColor DarkGray
+        $existingScheme = & powercfg /list 2>&1 | Select-String 'Ultimate Performance' | ForEach-Object { ($_ -split '\s+')[3] }
+        if (-not $existingScheme) {
+            & powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 2>&1 | Out-Null
+            $existingScheme = & powercfg /list 2>&1 | Select-String 'Ultimate Performance' | ForEach-Object { ($_ -split '\s+')[3] }
+        }
+        if ($existingScheme) {
+            & powercfg /setactive $existingScheme 2>&1 | Out-Null
+            & powercfg /setacvalueindex $existingScheme SUB_PROCESSOR CPMINCORES 100 2>&1 | Out-Null
+            & powercfg /setdcvalueindex $existingScheme SUB_PROCESSOR CPMINCORES 100 2>&1 | Out-Null
+            & powercfg /setacvalueindex $existingScheme SUB_PROCESSOR CPMAXCORES 100 2>&1 | Out-Null
+            & powercfg /setdcvalueindex $existingScheme SUB_PROCESSOR CPMAXCORES 100 2>&1 | Out-Null
+            Write-Host "  SET  Ultimate Performance power plan activated with core parking disabled" -ForegroundColor DarkGray
+        } else {
+            Write-Host "  SKIP Ultimate Performance plan (not available on this edition)" -ForegroundColor DarkGray
+        }
     } catch { Write-Host "  FAIL Power plan configuration failed" -ForegroundColor Red }
     Show-Done
 }
