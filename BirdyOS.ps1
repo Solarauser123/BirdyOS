@@ -979,6 +979,7 @@ function Run-Everything {
     Invoke-AllGaming
     Invoke-AllQoL
     Invoke-AllWindowsUpdate
+    Invoke-AllCleanup
     Disable-TaskbarExtras
     Disable-NetworkSecurity
     Disable-TelemetryServices
@@ -986,15 +987,8 @@ function Run-Everything {
     Set-AppPermissions
     Set-OOBETweaks
     Remove-WindowsCapabilities
-    Write-Host ""
-    Write-Host "  [!] About to remove bloat apps and OneDrive." -ForegroundColor DarkYellow
-    Write-Host "  This is permanent and cannot be undone without a restore point." -ForegroundColor DarkYellow
-    Write-Host ""
-    $appConfirm = Read-Host "  Remove apps and OneDrive? (Y/N)"
-    if ($appConfirm.ToUpper() -eq 'Y') {
-        Remove-Appx
-        Remove-OneDrive
-    }
+    Remove-Appx
+    Remove-OneDrive
     Write-Host ""
     Write-Host "  [+] All tweaks applied." -ForegroundColor Green
     Write-Host "  [*] A restart is required for all changes to take effect." -ForegroundColor DarkYellow
@@ -2035,6 +2029,198 @@ function Show-NetworkSecurity {
     }
 }
 
+function Clear-TempFiles {
+    Write-Host ""
+    Write-Host "  Clearing Temporary Files..." -ForegroundColor Cyan
+    Write-Host ""
+    Remove-Item -Path "$env:TEMP\*" -Force -Recurse -ErrorAction SilentlyContinue
+    Remove-Item -Path "C:\Windows\Temp\*" -Force -Recurse -ErrorAction SilentlyContinue
+    Write-Host "  SET  Temp files cleared" -ForegroundColor DarkGray
+    Show-Done
+}
+
+function Clear-DNSCache {
+    Write-Host ""
+    Write-Host "  Flushing DNS Cache..." -ForegroundColor Cyan
+    Write-Host ""
+    Clear-DnsClientCache
+    Write-Host "  SET  DNS cache flushed" -ForegroundColor DarkGray
+    Show-Done
+}
+
+function Clear-Prefetch {
+    Write-Host ""
+    Write-Host "  Clearing Prefetch..." -ForegroundColor Cyan
+    Write-Host ""
+    Remove-Item -Path "C:\Windows\Prefetch\*" -Force -Recurse -ErrorAction SilentlyContinue
+    Write-Host "  SET  Prefetch cleared" -ForegroundColor DarkGray
+    Show-Done
+}
+
+function Clear-BrowserCache {
+    Write-Host ""
+    Write-Host "  Clearing Browser Cache..." -ForegroundColor Cyan
+    Write-Host ""
+    $browserPaths = @(
+        "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache",
+        "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Code Cache",
+        "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache",
+        "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Code Cache",
+        "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Cache",
+        "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Code Cache",
+        "$env:LOCALAPPDATA\Opera Software\Opera Stable\Cache",
+        "$env:LOCALAPPDATA\Vivaldi\User Data\Default\Cache"
+    )
+    foreach ($p in $browserPaths) {
+        Remove-Item -Path "$p\*" -Force -Recurse -ErrorAction SilentlyContinue
+        Write-Host "  SET  Cleared: $($p.Split('\')[-1])" -ForegroundColor DarkGray
+    }
+    $ffProfilesRoot = "$env:APPDATA\Mozilla\Firefox\Profiles"
+    if (Test-Path $ffProfilesRoot) {
+        Get-ChildItem -Path $ffProfilesRoot -Directory | ForEach-Object {
+            $cache = Join-Path $_.FullName "cache2"
+            if (Test-Path $cache) {
+                Remove-Item -Path "$cache\*" -Force -Recurse -ErrorAction SilentlyContinue
+                Write-Host "  SET  Cleared Firefox cache2: $($_.Name)" -ForegroundColor DarkGray
+            }
+        }
+    }
+    Show-Done
+}
+
+function Clear-ThumbnailCache {
+    Write-Host ""
+    Write-Host "  Clearing Thumbnail Cache..." -ForegroundColor Cyan
+    Write-Host ""
+    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\*.db" -Force -ErrorAction SilentlyContinue
+    Write-Host "  SET  Thumbnail cache cleared" -ForegroundColor DarkGray
+    Start-Process explorer
+    Show-Done
+}
+
+function Clear-WindowsUpdateCache {
+    Write-Host ""
+    Write-Host "  Clearing Windows Update Cache..." -ForegroundColor Cyan
+    Write-Host ""
+    Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "C:\Windows\SoftwareDistribution\Download\*" -Force -Recurse -ErrorAction SilentlyContinue
+    Remove-Item -Path "C:\Windows\SoftwareDistribution\DeliveryOptimization\*" -Force -Recurse -ErrorAction SilentlyContinue
+    Start-Service -Name wuauserv -ErrorAction SilentlyContinue
+    Write-Host "  SET  Windows Update cache cleared" -ForegroundColor DarkGray
+    Show-Done
+}
+
+function Clear-BuildArtifacts {
+    Write-Host ""
+    Write-Host "  Removing Build Artifacts..." -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  [!] This scans all of C:\ and deletes .pdb, .obj, .ilk and similar files" -ForegroundColor DarkYellow
+    Write-Host "  everywhere on the drive, including active projects. This cannot be undone." -ForegroundColor DarkYellow
+    Write-Host ""
+    $confirm = Read-Host "  Continue? (Y/N)"
+    if ($confirm.ToUpper() -ne 'Y') {
+        Write-Host "  Skipped." -ForegroundColor DarkGray
+        return
+    }
+    Write-Host "  [*] Scanning C:\ - this may take a moment..." -ForegroundColor DarkGray
+    Get-ChildItem -Path "C:\" -Filter ".vs" -Recurse -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object {
+        Remove-Item -Path $_.FullName -Force -Recurse -ErrorAction SilentlyContinue
+        Write-Host "  SET  Removed .vs: $($_.FullName)" -ForegroundColor DarkGray
+    }
+    $extensions = @("*.pdb", "*.tlog", "*.obj", "*.ilk", "*.iobj", "*.ipdb")
+    foreach ($ext in $extensions) {
+        Get-ChildItem -Path "C:\" -Filter $ext -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        Write-Host "  SET  Cleared: $ext" -ForegroundColor DarkGray
+    }
+    Show-Done
+}
+
+function Invoke-DiskCleanup {
+    Write-Host ""
+    Write-Host "  Running Disk Cleanup..." -ForegroundColor Cyan
+    Write-Host ""
+    Start-Process cleanmgr -ArgumentList "/autoclean" -Wait -ErrorAction SilentlyContinue
+    Write-Host "  SET  Disk cleanup complete" -ForegroundColor DarkGray
+    Show-Done
+}
+
+function Invoke-MemoryOptimize {
+    Write-Host ""
+    Write-Host "  Optimizing Memory..." -ForegroundColor Cyan
+    Write-Host ""
+    rundll32.exe advapi32.dll,ProcessIdleTasks
+    Write-Host "  SET  Memory optimization triggered" -ForegroundColor DarkGray
+    Show-Done
+}
+
+function Invoke-RecycleBinEmpty {
+    Write-Host ""
+    Write-Host "  Emptying Recycle Bin..." -ForegroundColor Cyan
+    Write-Host ""
+    Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+    Write-Host "  SET  Recycle bin emptied" -ForegroundColor DarkGray
+    Show-Done
+}
+
+function Invoke-AllCleanup {
+    $script:SilentMode = $true
+    Clear-TempFiles
+    Clear-DNSCache
+    Clear-Prefetch
+    Clear-BrowserCache
+    Clear-ThumbnailCache
+    Clear-WindowsUpdateCache
+    Invoke-DiskCleanup
+    Invoke-MemoryOptimize
+    Invoke-RecycleBinEmpty
+    $script:SilentMode = $false
+    Write-Host ""
+    Write-Host "  [+] Cleanup complete." -ForegroundColor Green
+    Write-Host ""
+}
+
+function Show-Cleanup {
+    while ($true) {
+        Show-Logo
+        Write-Host " =================================" -ForegroundColor DarkCyan
+        Write-Host "            CLEANUP               " -ForegroundColor White
+        Write-Host " =================================" -ForegroundColor DarkCyan
+        Write-Host ""
+        Write-Host "  [1]  Clear Temporary Files" -ForegroundColor Yellow
+        Write-Host "  [2]  Flush DNS Cache" -ForegroundColor Yellow
+        Write-Host "  [3]  Clear Prefetch" -ForegroundColor Yellow
+        Write-Host "  [4]  Clear Browser Cache" -ForegroundColor Yellow
+        Write-Host "  [5]  Clear Thumbnail Cache" -ForegroundColor Yellow
+        Write-Host "  [6]  Clear Windows Update Cache" -ForegroundColor Yellow
+        Write-Host "  [7]  Remove Build Artifacts" -ForegroundColor Yellow
+        Write-Host "  [8]  Run Disk Cleanup" -ForegroundColor Yellow
+        Write-Host "  [9]  Optimize Memory" -ForegroundColor Yellow
+        Write-Host "  [10] Empty Recycle Bin" -ForegroundColor Yellow
+        Write-Host "  [A]  Run All" -ForegroundColor Cyan
+        Write-Host "  [0]  Back" -ForegroundColor Red
+        Write-Host ""
+        Write-Host " =================================" -ForegroundColor DarkCyan
+        Write-Host ""
+        $choice = Read-Host "  Select an option"
+        switch ($choice.ToUpper()) {
+            '1'  { Clear-TempFiles }
+            '2'  { Clear-DNSCache }
+            '3'  { Clear-Prefetch }
+            '4'  { Clear-BrowserCache }
+            '5'  { Clear-ThumbnailCache }
+            '6'  { Clear-WindowsUpdateCache }
+            '7'  { Clear-BuildArtifacts }
+            '8'  { Invoke-DiskCleanup }
+            '9'  { Invoke-MemoryOptimize }
+            '10' { Invoke-RecycleBinEmpty }
+            'A'  { Invoke-AllCleanup }
+            '0'  { return }
+            default { Write-Host ""; Write-Host "  [!] Invalid option, try again" -ForegroundColor Red; Start-Sleep -Seconds 1 }
+        }
+    }
+}
+
 while ($true) {
     Show-Logo
     Write-Host " =================================" -ForegroundColor DarkCyan
@@ -2052,10 +2238,11 @@ while ($true) {
     Write-Host "  [6]  Security and Performance" -ForegroundColor Yellow
     Write-Host "  [7]  Gaming Tweaks" -ForegroundColor Yellow
     Write-Host "  [8]  QoL Tweaks" -ForegroundColor Yellow
-    Write-Host "  [9]  Windows Update" -ForegroundColor Yellow
-    Write-Host "  [10] Taskbar Extras" -ForegroundColor Yellow
-    Write-Host "  [11] Network Security" -ForegroundColor Yellow
-    Write-Host "  [12] Debloat and Hardening" -ForegroundColor Yellow
+    Write-Host "  [9]  Cleanup" -ForegroundColor Yellow
+    Write-Host "  [10] Windows Update" -ForegroundColor Yellow
+    Write-Host "  [11] Taskbar Extras" -ForegroundColor Yellow
+    Write-Host "  [12] Network Security" -ForegroundColor Yellow
+    Write-Host "  [13] Debloat and Hardening" -ForegroundColor Yellow
     Write-Host "  [0]  Exit" -ForegroundColor Red
     Write-Host ""
     Write-Host " =================================" -ForegroundColor DarkCyan
@@ -2079,10 +2266,11 @@ while ($true) {
         '6'  { Show-SecPerf }
         '7'  { Show-Gaming }
         '8'  { Show-QoL }
-        '9'  { Show-WindowsUpdate }
-        '10' { Show-TaskbarExtras }
-        '11' { Show-NetworkSecurity }
-        '12' { Show-ServicesModule }
+        '9'  { Show-Cleanup }
+        '10' { Show-WindowsUpdate }
+        '11' { Show-TaskbarExtras }
+        '12' { Show-NetworkSecurity }
+        '13' { Show-ServicesModule }
         '0'  { Clear-Host; Stop-Transcript | Out-Null; exit }
         default { Write-Host ""; Write-Host "  [!] Invalid option, try again" -ForegroundColor Red; Start-Sleep -Seconds 1 }
     }
